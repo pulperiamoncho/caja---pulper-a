@@ -1,0 +1,212 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#222222"><link rel="manifest" href="manifest.json">
+<title>Caja Pulpería V3</title>
+<style>
+body{font-family:Arial;margin:0;background:#f3f4f6;color:#202124}.wrap{max-width:900px;margin:auto;padding:16px}
+h1{font-size:24px;margin:0}.muted{color:#667085}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:1fr 110px;gap:10px}select,input,button{width:100%;min-height:46px;border:1px solid #ccc;border-radius:9px;padding:9px;font-size:16px;box-sizing:border-box}
+button{background:#222;color:white;font-weight:bold;cursor:pointer}.secondary{background:#eee;color:#222}.success{background:#087443}
+.pay{display:flex;gap:8px}.pay button{flex:1}.selected{outline:3px solid #999}.line{display:grid;grid-template-columns:1fr 65px 105px 105px 40px;gap:6px;align-items:center;border-bottom:1px solid #eee;padding:9px 0}
+.total{text-align:right;font-size:28px;font-weight:bold;margin:14px 0}.tabs{display:flex;gap:8px}.tabs button{flex:1}.panel{display:none}.panel.active{display:block}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{background:#f8fafc;padding:12px;border-radius:10px}.metric b{display:block;font-size:20px;margin-top:4px}
+table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left;font-size:14px}.row{display:grid;grid-template-columns:1fr 120px 100px;gap:8px;margin:7px 0;align-items:center}
+@media(max-width:650px){.grid,.metrics{grid-template-columns:1fr}.line{grid-template-columns:1fr 55px 85px 95px 38px}.row{grid-template-columns:1fr 100px 90px}}
+@media print{body{background:white}.noprint{display:none!important}.card{border:none}.tabs{display:none}.panel{display:block}}
+</style></head><body><script>
+const V9_ESTABLE_CLEAN_START="pulperia_v9_estable_clean_start";
+if(!localStorage.getItem(V9_ESTABLE_CLEAN_START)){
+ localStorage.removeItem("pulperia_caja_v9_estable_sales");
+ localStorage.removeItem("pulperia_caja_v9_test2_buys");
+ localStorage.setItem(V9_ESTABLE_CLEAN_START,"1");
+}
+</script><div class="wrap">
+<div class="noprint" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h1>CAJA DE LA PULPERÍA</h1><div class="muted">Seleccione el producto y todo se calcula automáticamente.</div></div><button id="new" class="secondary" style="width:auto">NUEVA VENTA</button></div>
+
+<section class="card noprint">
+<div class="grid"><div><b>Producto</b>
+<input id="productSearch" type="search" placeholder="🔎 Buscar producto..." autocomplete="off">
+<select id="prod"></select></div><div><b>Cantidad</b><input id="qty" type="number" min="1" value="1"></div></div>
+<button id="add" style="margin-top:10px">AGREGAR PRODUCTO</button><div id="cart"></div>
+<div class="total">TOTAL: <span id="total">₡0</span></div><b>Forma de pago</b>
+<div class="pay"><button id="cash">EFECTIVO</button><button id="sinpe" class="secondary">SINPE</button></div>
+<button id="save" class="success" style="margin-top:10px">GUARDAR VENTA</button><div id="msg" class="muted" style="margin-top:8px"></div></section>
+
+<div class="tabs noprint"><button id="st">RESUMEN</button><button id="ht" class="secondary">VENTAS Y CONSULTAS</button><button id="pt" class="secondary">PRODUCTOS / ADMINISTRACIÓN</button><button id="buyTab" class="secondary">PAGOS / COMPRAS</button></div>
+
+<section id="sp" class="card panel active"><h2>Resumen automático</h2><div class="metrics">
+<div class="metric">HOY<b id="td">₡0</b></div><div class="metric">ESTE MES<b id="mo">₡0</b></div><div class="metric">VENTAS HOY<b id="ct">0</b></div></div>
+<div class="metrics" style="margin-top:8px"><div class="metric">EFECTIVO HOY<b id="ca">₡0</b></div><div class="metric">SINPE HOY<b id="si">₡0</b></div><div class="metric">HISTÓRICO<b id="all">₡0</b></div></div>
+<button id="printSummary" class="noprint" style="margin-top:12px">IMPRIMIR RESUMEN DE HOY</button></section>
+
+<section id="hp" class="card panel"><h2>Consultar por día, mes o período</h2>
+<div class="grid"><div><b>Desde</b><input id="from" type="date"></div><div><b>Hasta</b><input id="to" type="date"></div></div>
+<button id="filter" style="margin-top:10px">CALCULAR PERÍODO</button><button id="printPeriod" class="noprint secondary" style="margin-top:8px">IMPRIMIR ESTE RESUMEN</button>
+<button id="exportCsv" class="noprint secondary" style="margin-top:8px">📊 GUARDAR VENTAS EN EXCEL</button>
+<div id="period"></div><div id="hist"></div></section>
+
+<section id="pp" class="card panel"><h2>Productos y precios</h2><div class="muted">Aquí puede cambiar precios o agregar productos nuevos. Los cambios afectan las ventas nuevas; las ventas anteriores conservan su precio.</div>
+<div class="row"><input id="newName" placeholder="Nombre del producto"><input id="newPrice" type="number" min="0" placeholder="Precio"><button id="addProduct">AGREGAR</button></div>
+<div style="display:grid;grid-template-columns:1fr 120px 100px;gap:8px;font-weight:700;font-size:13px"><div>Nombre del producto</div><div>Precio</div><div></div></div><div id="productList"></div>
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee">
+  <h3 style="margin:0 0 5px">⚙️ ADMINISTRACIÓN Y RESPALDO</h3><div class="muted" style="margin:5px 0 10px">Versión preparada para Android. Mantenga este archivo y no borre la versión anterior hasta comprobar que todo funciona.</div>
+  <div class="muted" style="margin:5px 0 8px">Aquí puede guardar una copia de seguridad o restaurarla si cambia de celular.</div>
+  <button id="backup" class="secondary">💾 GUARDAR RESPALDO</button>
+  <button id="restoreBtn" class="secondary" style="margin-top:7px">📥 RESTAURAR RESPALDO</button>
+  <input id="restoreFile" type="file" accept=".json" style="display:none">
+  <div id="backupMsg" class="muted" style="margin-top:7px"></div>
+</div>
+</section>
+<section id="bp" class="card panel" style="display:none">
+<h2>Pagos / compras del día</h2>
+<div class="muted">Registre aquí lo que se pagó durante el día. Los pagos en efectivo se restan del efectivo esperado; los pagos por SINPE u otra forma de pago no reducen el efectivo de caja.</div>
+<div class="grid" style="margin-top:10px">
+<div><b>Descripción</b><input id="buyDesc" placeholder="Ej.: compra de mercadería"></div>
+<div><b>Monto</b><input id="buyAmount" type="number" min="0" step="1" placeholder="₡"></div>
+</div>
+<b>Forma de pago</b>
+<div class="pay"><button id="buyCash">EFECTIVO</button><button id="buySinpe" class="secondary">SINPE / OTRO</button></div>
+<button id="saveBuy" class="success" style="margin-top:10px">REGISTRAR PAGO / COMPRA</button>
+<div id="buyMsg" class="muted" style="margin-top:8px"></div>
+<div id="buySummary" style="margin-top:14px"></div>
+<div id="buyList" style="margin-top:10px"></div>
+</section>
+</div>
+<script>
+const INITIAL=[{"name": "ACEITE CAPULLO", "price": 1500}, {"name": "ACEITE CORONA", "price": 1200}, {"name": "ACEITE IDEAL", "price": 1250}, {"name": "ACHIOTE LOS PATITOS", "price": 650}, {"name": "ALAMBRINA", "price": 500}, {"name": "ALBOROTOS", "price": 150}, {"name": "ALCOHOL", "price": 800}, {"name": "ALIMENTO DON GATO", "price": 1050}, {"name": "ALIMENTO DON GATO", "price": 2200}, {"name": "ALIMENTO GATO JAZZ 400GR", "price": 900}, {"name": "ALIMENTO GATO TRIO CAT 1 K", "price": 1750}, {"name": "ALIMENTO PARA PERRO", "price": 1050}, {"name": "ALIMENTO PARA PERRO", "price": 2050}, {"name": "ALIMENTO PARA PERRO MEGADOC 1,8 GR", "price": 1700}, {"name": "ANILLO LUZ", "price": 150}, {"name": "ARROZ ARMENIO 1,8 GR", "price": 1750}, {"name": "ARROZ LUISIANA", "price": 2350}, {"name": "ARROZ TIO PELON", "price": 1300}, {"name": "ARROZ TIO PELON", "price": 2000}, {"name": "ATUN AZUL PRONTO", "price": 975}, {"name": "ATUN VEGETAL", "price": 1000}, {"name": "AZÚCAR", "price": 800}, {"name": "BARRILETES DE COCO", "price": 75}, {"name": "BARRILETES DE COLORES", "price": 75}, {"name": "BATERIA PANASONIC AA", "price": 300}, {"name": "BATERIA PANASONIC AAA", "price": 350}, {"name": "BATERIA PANASONIC D2 GRANDE", "price": 1600}, {"name": "BISCOCHO DULCE", "price": 1300}, {"name": "BISCOCHO SALADO", "price": 1200}, {"name": "BOLITAS DE QUESO", "price": 100}, {"name": "BOLSAS DE BASURA GRANDES", "price": 750}, {"name": "BOLSAS DE BASURA MEDIANAS", "price": 550}, {"name": "BOLSAS DE BASURA PEQUEÑAS", "price": 450}, {"name": "BOMBILLO DE 50 watts", "price": 500}, {"name": "BOMBILLO DE 75 watts", "price": 600}, {"name": "BOTONETAS", "price": 50}, {"name": "BOTONETAS CHOCOLATE", "price": 100}, {"name": "BOTONETAS MANI", "price": 100}, {"name": "BUENACHO", "price": 100}, {"name": "BURBUJAS CREMA", "price": 150}, {"name": "BURBUJAS DE SHAMPOO, ACONDICIONADOR", "price": 150}, {"name": "CAFÉ 1820", "price": 1450}, {"name": "CAFÉ 1820", "price": 2800}, {"name": "CAFÉ REY", "price": 2100}, {"name": "CAFÉ REY", "price": 3900}, {"name": "CANDELA BLANCA", "price": 150}, {"name": "CANELA EN ASTILLA", "price": 1000}, {"name": "CAPY", "price": 150}, {"name": "CARACOLITOS", "price": 900}, {"name": "CEBOLLA", "price": 0}, {"name": "CENTAVITOS", "price": 150}, {"name": "CEPILLO DE DIENTES", "price": 800}, {"name": "CHICHE CRAYOLA", "price": 150}, {"name": "CHICLES ACIDOS REVOLCON", "price": 50}, {"name": "CHICLES BOLITAS DE COLORES", "price": 50}, {"name": "CHICLES CROC", "price": 25}, {"name": "CHICLES HUEVITOS", "price": 100}, {"name": "CHILE DULCE AMARILLO", "price": 750}, {"name": "CHILE JALAPEÑO", "price": 850}, {"name": "CHOCOLATE BARRITON", "price": 100}, {"name": "CHOCOLATE MONEDA", "price": 50}, {"name": "CHOCOLATES TRON", "price": 50}, {"name": "CHOCOSTAR", "price": 100}, {"name": "CHUCHERIAS", "price": 0}, {"name": "CLORO Irex", "price": 500}, {"name": "COCA COLA  1.5 DESECHABLE", "price": 1200}, {"name": "COCA COLA  3L", "price": 2800}, {"name": "COCA COLA  600 ML", "price": 1000}, {"name": "COCA COLA 1L", "price": 850}, {"name": "COCA COLA 2,5L RETORNABLE111", "price": 1400}, {"name": "COCA COLA 2.5 ML", "price": 1500}, {"name": "COCA COLA 192 ML", "price": 350}, {"name": "COCA COLA 355 ML", "price": 500}, {"name": "COCA COLA ZERO  600ML", "price": 875}, {"name": "COCOA DULCE", "price": 1000}, {"name": "CONFITES BARIADOS", "price": 25}, {"name": "CONFITES CHAOS", "price": 75}, {"name": "CONFITES MENTA", "price": 25}, {"name": "CONSOME", "price": 150}, {"name": "COSTILLA GRANDE", "price": 1800}, {"name": "CULANTRO CASTILLA", "price": 300}, {"name": "DEL VALLE 3L", "price": 1800}, {"name": "DEL VALLE LATA  330 ML", "price": 600}, {"name": "DESINFECTANTE FABULOSO 750ML", "price": 900}, {"name": "DESINFECTANTE Irex", "price": 800}, {"name": "ELOTITOS CHILE", "price": 200}, {"name": "ELOTITOS LIMON", "price": 150}, {"name": "EMPANADA DE CHIVERRE", "price": 1400}, {"name": "EMPANADA DULCE DE LECHE", "price": 1400}, {"name": "EMPANADAS PANADERIA MONSERRAT", "price": 1200}, {"name": "EMPANIZADOR DE PEZCADO", "price": 600}, {"name": "EMPANIZADOR DE POLLO", "price": 600}, {"name": "ENCENDEDORES", "price": 250}, {"name": "ESCOBA", "price": 2200}, {"name": "ESPAGUETI ROMA", "price": 700}, {"name": "ESPAGUETI ROMA", "price": 1500}, {"name": "ESPONJA LAVA PLATOS", "price": 500}, {"name": "FANTA COLITA 2,5L RETORNABLE", "price": 1400}, {"name": "FANTA NARANJA  355 ML", "price": 500}, {"name": "FANTA NARANJA 2,5L RETORNABLE", "price": 1400}, {"name": "FANTA UVA 2.5 L RETORNABLE", "price": 1400}, {"name": "FOSFOROS", "price": 100}, {"name": "FRESCA  2,5 L", "price": 1400}, {"name": "FRESCA PEQUEÑA 355 ML", "price": 500}, {"name": "FRIJOLES  MOLIDOS ROJOS", "price": 800}, {"name": "FRIJOLES BLANCOS ARMENIO", "price": 800}, {"name": "FRIJOLES MOLIDOS NEGROS", "price": 800}, {"name": "FRIJOLES NEGROS ARMENIO", "price": 1200}, {"name": "FRIJOLES NEGROS TIO PELON", "price": 1700}, {"name": "FRIJOLES ROJOS ARMENIO", "price": 1250}, {"name": "FRIJOLES ROJOS TIO PELON", "price": 2000}, {"name": "FRIJOLI CHIP", "price": 100}, {"name": "FURY ENERGY 500ML", "price": 1000}, {"name": "FUZE TEA  2.5", "price": 1500}, {"name": "FUZE TEA MANZANILLA 500 ML", "price": 600}, {"name": "GALAS", "price": 500}, {"name": "GALLETA LENGUA", "price": 1200}, {"name": "GALLETA NATILLA", "price": 1200}, {"name": "GALLETAS CUBITO BOKITAS", "price": 1150}, {"name": "GALLETAS DE DISTRIBUDOR", "price": 100}, {"name": "GALLETAS EN CUBITO YEMAS", "price": 1050}, {"name": "GALLETAS SODAS", "price": 1600}, {"name": "GALLETAS SURTIDAS", "price": 200}, {"name": "GALLITO MENTA", "price": 300}, {"name": "GALLITO VIOLETA", "price": 300}, {"name": "GASEOSAS", "price": 0}, {"name": "GATO", "price": 1400}, {"name": "GEL BARBER STYLE FOR MEN", "price": 975}, {"name": "GEL FORZA CONTROL 150 GR", "price": 900}, {"name": "GELATINAS", "price": 50}, {"name": "GINGER  2,5L RETORNABLE", "price": 1400}, {"name": "GINGER  355 ML", "price": 575}, {"name": "GOMAS DINOS", "price": 150}, {"name": "GUMMY CANDY OJITOS", "price": 100}, {"name": "HARINA NACARINA", "price": 1350}, {"name": "HELADOS RELLENOS LECHE CONDENSADA", "price": 350}, {"name": "HELADOS TAPON ESPECIAL - CREMOSO", "price": 550}, {"name": "HI C JUGO 250 ML", "price": 500}, {"name": "HONGOS", "price": 1000}, {"name": "HONGOS ENTEROS", "price": 900}, {"name": "HONGOS REBANADOS", "price": 750}, {"name": "HUEVO TRUENO", "price": 150}, {"name": "JABON AZUL SAN LUIS", "price": 800}, {"name": "JABON DE BAÑO BACTEX", "price": 600}, {"name": "JABON DE BAÑO DESOTRES", "price": 700}, {"name": "JABON DE TRASTES AXIÓN", "price": 800}, {"name": "JABON DE TRASTES Irex", "price": 600}, {"name": "JABON DE TRASTES SUPER MAGICO 400 GR", "price": 550}, {"name": "JABON EN POLOVO FORT 3", "price": 2300}, {"name": "JABON EN POLOVO SUPER MAGICO 2.5 KG", "price": 2250}, {"name": "JABON EN POLOVO SUPER MAGICO 400GR", "price": 500}, {"name": "JABON EN POLOVO SUPER MAGICO 850GR", "price": 650}, {"name": "JABON EN POLVO Irex", "price": 2500}, {"name": "JABONES EN POLVO Irex", "price": 800}, {"name": "JALAPEÑOS", "price": 150}, {"name": "LECHE 100% NUTRITIVA CORONADO", "price": 1200}, {"name": "LECHE AZUL SEMIDESCREMADA DOS PINOS", "price": 1300}, {"name": "LECHE CONDENSADA LA LECHERA", "price": 1500}, {"name": "LECHE DELACTOMY DOS PINOS", "price": 1500}, {"name": "LECHE EN POLVO PINITO BIENESTAR", "price": 2050}, {"name": "LECHE EVAPORADA", "price": 1500}, {"name": "LEGO CANDY", "price": 150}, {"name": "LIMONCHO", "price": 250}, {"name": "LIZANO 130 ML", "price": 800}, {"name": "LIZANO 280 ML", "price": 1900}, {"name": "MAIZ DULCE", "price": 600}, {"name": "MANI", "price": 150}, {"name": "MANTECA GRANDE", "price": 800}, {"name": "MANTECA PEQUEÑA", "price": 450}, {"name": "MANTEQUILLA", "price": 500}, {"name": "MASA JUANA", "price": 2050}, {"name": "MASA RICA", "price": 2550}, {"name": "MAXIMALTA", "price": 800}, {"name": "MAYONESA BANQUETE", "price": 500}, {"name": "MAYONESA LIZANO", "price": 1000}, {"name": "MONSTER ENERGY GREEN 473 ML", "price": 1450}, {"name": "NACHO", "price": 150}, {"name": "NATILLA", "price": 1050}, {"name": "NATILLA PEQUEÑA", "price": 375}, {"name": "PAJILLA LIQUIDA", "price": 150}, {"name": "PALITOS DE QUESO", "price": 150}, {"name": "PALITOS DE QUESO", "price": 1200}, {"name": "PALOMITA MIXTAS", "price": 350}, {"name": "PALOMITAS CARAMELO", "price": 825}, {"name": "PALOMITAS EXTRA MANTEQUILLA", "price": 925}, {"name": "PALOMITAS QUESO", "price": 825}, {"name": "PALOMITAS QUESO JALAPEÑO", "price": 750}, {"name": "PALOMITAS YUMMI POPS", "price": 300}, {"name": "PAN ARROLLADOS", "price": 1400}, {"name": "PANADOL EXTRA FUERTE", "price": 200}, {"name": "PANADOL MULTISINTOMAS", "price": 350}, {"name": "PANES", "price": 0}, {"name": "PAÑALES HUGGIES M 2", "price": 2100}, {"name": "PAPAS PAPACITAS", "price": 100}, {"name": "PAPEL HIGIENICO ECOS GRANDE 4 ROLLOS", "price": 1600}, {"name": "PAPEL HIGIENICO NEVAX 1 ROLLO", "price": 500}, {"name": "PAPEL HIGIENICO WIHT COTTON  1 ROLLO", "price": 450}, {"name": "PAPEL HIGIENICO WIHT COTTON  4/1", "price": 1200}, {"name": "PASTA BLANCA GRANDE", "price": 3100}, {"name": "PASTA BLANCA PEQUEÑA", "price": 1200}, {"name": "PASTA MAX FRESH", "price": 1450}, {"name": "PASTA MAX FRESH", "price": 2600}, {"name": "PASTILLAS SANITARIAS", "price": 500}, {"name": "PLATODESECHABLE FESTIVAL  #8", "price": 525}, {"name": "POLVO DE HORNEAR", "price": 1050}, {"name": "POPIS", "price": 100}, {"name": "POWER ADE 600ML", "price": 1000}, {"name": "PRESTOBARBA GILET", "price": 600}, {"name": "PRESTOBARBAS", "price": 150}, {"name": "PUPUSA", "price": 1300}, {"name": "QUESITOS", "price": 150}, {"name": "QUESITOS TOSTY", "price": 100}, {"name": "RANCHITA DE GUACAMOLE", "price": 150}, {"name": "RANCHITAS DE CHILE", "price": 150}, {"name": "RANCHITAS DE PIZZA", "price": 150}, {"name": "RANCHITAS DE QUESO", "price": 150}, {"name": "ROSQUILLAS ROJAS", "price": 1400}, {"name": "SA ANDRWS", "price": 200}, {"name": "SAL SALTARINA", "price": 400}, {"name": "SAL SOL", "price": 550}, {"name": "SAL SOLAR", "price": 450}, {"name": "SALSA BANQUETE CARNE,RANCHERA", "price": 550}, {"name": "SALSA DE TOMATE PEQUEÑA", "price": 900}, {"name": "SALSA SOFRITO ROMA", "price": 550}, {"name": "SALSITAS MILANO", "price": 450}, {"name": "SARDINA PICANTE SARDIMAR", "price": 1000}, {"name": "SARDINA TOMATE SARDIMAR", "price": 1000}, {"name": "SIGARROS", "price": 1900}, {"name": "SIROPE", "price": 850}, {"name": "SIROPE ASP 700 ML", "price": 500}, {"name": "SOPA MAGGI", "price": 550}, {"name": "SOPA MARUCHAN", "price": 700}, {"name": "SPRAY 600ML", "price": 1000}, {"name": "SUAVITEL", "price": 1300}, {"name": "TALCO PARA PIES", "price": 1000}, {"name": "TAN LIMÓN", "price": 350}, {"name": "TAN MARACUYA", "price": 350}, {"name": "TAN NARANJA", "price": 350}, {"name": "TAQUERITOS CHILE TOREADO", "price": 250}, {"name": "TAQUERITOS DRAGON  DE HIELO", "price": 250}, {"name": "TAQUERITOS QUESO FUSIÓN", "price": 250}, {"name": "TATU POP", "price": 150}, {"name": "TÉ MANZANILLA", "price": 950}, {"name": "TE MELOCOTON -LIMON HC", "price": 1500}, {"name": "TÉ NEGRO", "price": 850}, {"name": "TÉ VERDE", "price": 1000}, {"name": "TOALLAS DE COCINA 3 ROLLOS", "price": 2000}, {"name": "TOALLAS DE COCINA 3 ROLLOS FIESTA", "price": 1650}, {"name": "TOALLAS KOTEX NOCTURNAS CON ALAS", "price": 1500}, {"name": "TOALLAS SANITARIAS KOTEX CON ALAS", "price": 1050}, {"name": "TOALLAS SANITARIAS KOTEX SIN ALAS", "price": 1050}, {"name": "TOCINITOS", "price": 150}, {"name": "TORTILLAEL FOGON", "price": 0}, {"name": "TORTILLAEL TORTIRRICA", "price": 0}, {"name": "TOTALES", "price": 0}, {"name": "TRIDENT CHICLES", "price": 150}, {"name": "VAINILLA VAINOL", "price": 1350}, {"name": "VASOS DESECHABLES", "price": 600}, {"name": "VASOS DESECHABLES c/u", "price": 100}, {"name": "VERDURAS", "price": 0}, {"name": "VINAGRE BLANCO MIA 700 ML", "price": 500}, {"name": "VINAGRE BLANCO PARRITEÑO", "price": 900}, {"name": "YUQUITAS", "price": 150}, {"name": "YUQUITAS CON LIMON", "price": 200}, {"name": "ZIBAS", "price": 300}], KEY="pulperia_caja_v9_estable_sales", PKEY="pulperia_caja_v9_estable_products";
+let PRODUCTS=JSON.parse(localStorage.getItem(PKEY)||"null")||INITIAL.map(x=>({...x}));
+let sales=JSON.parse(localStorage.getItem(KEY)||"[]"),cart=[],pay="Efectivo";
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("es-CR",{style:"currency",currency:"CRC",maximumFractionDigits:0}).format(Number(n)||0);
+function date(){let d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function saveProducts(){ PRODUCTS.sort((a,b)=>a.name.localeCompare(b.name,"es",{numeric:true,sensitivity:"base"}) || a.price-b.price); localStorage.setItem(PKEY,JSON.stringify(PRODUCTS))}
+function fillProducts(){
+  PRODUCTS.sort((a,b)=>a.name.localeCompare(b.name,"es",{numeric:true,sensitivity:"base"}) || a.price-b.price);
+  const q=(document.getElementById("productSearch")?.value||"").trim().toLocaleLowerCase("es");
+  const list=PRODUCTS.map((p,i)=>({p,i})).filter(x=>!q || x.p.name.toLocaleLowerCase("es").includes(q));
+  $("prod").innerHTML='<option value="">— Seleccione —</option>'+
+    list.map(x=>'<option value="'+x.i+'">'+x.p.name.replace(/</g,"&lt;")+' — '+money(x.p.price)+'</option>').join("");
+}
+document.getElementById("productSearch").addEventListener("input",fillProducts);
+function renderCart(){ $("cart").innerHTML=cart.length?cart.map((x,i)=>'<div class="line"><div>'+x.name+'</div><div>'+x.qty+'</div><div>'+money(x.price)+'</div><div>'+money(x.qty*x.price)+'</div><button class="secondary" onclick="del('+i+')">×</button></div>').join(""):'<div class="muted" style="margin-top:10px">No hay productos en esta venta.</div>'; $("total").textContent=money(cart.reduce((a,x)=>a+x.qty*x.price,0))}
+function del(i){cart.splice(i,1);renderCart()}
+$("add").onclick=()=>{let i=Number($("prod").value),q=Math.max(1,parseInt($("qty").value||"1"));if(!PRODUCTS[i]){$("msg").textContent="Seleccione un producto.";return}let p=PRODUCTS[i],x=cart.find(z=>z.name===p.name&&z.price===p.price);x?x.qty+=q:cart.push({name:p.name,price:p.price,qty:q});$("prod").value="";$("qty").value=1;renderCart()}
+$("cash").onclick=()=>{pay="Efectivo";$("cash").classList.add("selected");$("sinpe").classList.remove("selected")}
+$("sinpe").onclick=()=>{pay="SINPE";$("sinpe").classList.add("selected");$("cash").classList.remove("selected")}
+$("new").onclick=()=>{cart=[];pay="Efectivo";$("cash").classList.add("selected");$("sinpe").classList.remove("selected");renderCart();$("msg").textContent="Nueva venta lista."}
+$("save").onclick=()=>{if(!cart.length){$("msg").textContent="Agregue productos.";return}let total=cart.reduce((a,x)=>a+x.qty*x.price,0);sales.push({date:date(),time:new Date().toLocaleTimeString("es-CR",{hour:"2-digit",minute:"2-digit"}),items:cart.map(x=>({...x})),total,pay});localStorage.setItem(KEY,JSON.stringify(sales));cart=[];renderCart();summary();showPeriod();$("msg").textContent="✓ Venta guardada correctamente."}
+function summary(){let t=date(),m=t.slice(0,7),td=sales.filter(s=>s.date===t),mo=sales.filter(s=>s.date.startsWith(m)),sum=a=>a.reduce((z,s)=>z+s.total,0);$("td").textContent=money(sum(td));$("mo").textContent=money(sum(mo));$("ct").textContent=td.length;$("ca").textContent=money(sum(td.filter(s=>s.pay==="Efectivo")));$("si").textContent=money(sum(td.filter(s=>s.pay==="SINPE")));$("all").textContent=money(sum(sales))}
+function showPeriod(){let a=$("from").value,b=$("to").value,l=sales.filter(s=>(!a||s.date>=a)&&(!b||s.date<=b)),sum=l.reduce((z,s)=>z+s.total,0),ca=l.filter(s=>s.pay==="Efectivo").reduce((z,s)=>z+s.total,0),si=l.filter(s=>s.pay==="SINPE").reduce((z,s)=>z+s.total,0);$("period").innerHTML='<div class="metrics" style="margin-top:12px"><div class="metric">TOTAL<b>'+money(sum)+'</b></div><div class="metric">EFECTIVO<b>'+money(ca)+'</b></div><div class="metric">SINPE<b>'+money(si)+'</b></div></div>';$("hist").innerHTML=l.length?'<h3>Ventas guardadas</h3><table><tr><th>Fecha</th><th>Hora</th><th>Total</th><th>Pago</th></tr>'+l.slice().reverse().map(s=>'<tr><td>'+s.date+'</td><td>'+s.time+'</td><td>'+money(s.total)+'</td><td>'+s.pay+'</td></tr>').join("")+'</table>':'<p class="muted">No hay ventas en ese período.</p>'}
+function renderProducts(){ 
+  $("productList").innerHTML=PRODUCTS.map((p,i)=>'<div class="row"><input type="text" value="'+p.name.replace(/"/g,"&quot;")+'" data-name="'+i+'" class="nameEdit"><input type="number" min="0" value="'+p.price+'" data-i="'+i+'" class="priceEdit"><button data-save="'+i+'">GUARDAR</button></div>').join("");
+  document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{
+    let i=Number(b.dataset.save);
+    let n=document.querySelector('[data-name="'+i+'"]').value.trim();
+    let v=Number(document.querySelector('[data-i="'+i+'"]').value);
+    if(n && v>=0){
+      PRODUCTS[i].name=n; PRODUCTS[i].price=v;
+      saveProducts(); fillProducts(); renderProducts(); summary();
+      $("backupMsg").textContent="✓ Producto actualizado.";
+    }
+  })
+}
+
+const BUYKEY="pulperia_caja_v9_test2_buys";
+let buys=[];
+try{buys=JSON.parse(localStorage.getItem(BUYKEY)||"[]");}catch(e){buys=[];}
+let buyPay="Efectivo";
+
+function saveBuys(){localStorage.setItem(BUYKEY,JSON.stringify(buys));}
+
+function renderBuySummary(){
+  const today=date();
+  const todayBuys=buys.filter(b=>b.date===today);
+  const cashSales=sales.filter(s=>s.date===today && s.pay==="Efectivo").reduce((z,s)=>z+s.total,0);
+  const sinpeSales=sales.filter(s=>s.date===today && s.pay==="SINPE").reduce((z,s)=>z+s.total,0);
+  const cashBuys=todayBuys.filter(b=>b.pay==="Efectivo").reduce((z,b)=>z+b.amount,0);
+  const sinpeBuys=todayBuys.filter(b=>b.pay==="SINPE / Otro").reduce((z,b)=>z+b.amount,0);
+  const cashExpected=cashSales-cashBuys;
+  const sinpeExpected=sinpeSales-sinpeBuys;
+  $("buySummary").innerHTML=
+    '<div class="metrics">'+
+    '<div class="metric">VENTAS EN EFECTIVO<b>'+money(cashSales)+'</b></div>'+
+    '<div class="metric">PAGOS EN EFECTIVO<b>'+money(cashBuys)+'</b></div>'+
+    '<div class="metric">EFECTIVO ESPERADO EN CAJA<b>'+money(cashExpected)+'</b></div></div>'+
+    '<div class="metrics" style="margin-top:8px">'+
+    '<div class="metric">VENTAS SINPE<b>'+money(sinpeSales)+'</b></div>'+
+    '<div class="metric">PAGOS SINPE / OTRO<b>'+money(sinpeBuys)+'</b></div>'+
+    '<div class="metric">SINPE ESPERADO<b>'+money(sinpeExpected)+'</b></div></div>'+
+    '<div class="metrics" style="margin-top:8px"><div class="metric">TOTAL PAGOS / COMPRAS<b>'+money(cashBuys+sinpeBuys)+'</b></div></div>';
+  $("buyList").innerHTML=todayBuys.length
+    ? '<h3>Pagos registrados hoy</h3>'+todayBuys.slice().reverse().map(b=>
+      '<div class="row"><span>'+b.desc+'<br><small>'+b.pay+' · '+b.time+'</small></span><b>'+money(b.amount)+'</b></div>'
+    ).join("")
+    : '<p class="muted">No hay pagos o compras registrados hoy.</p>';
+}
+
+$("buyCash").onclick=()=>{buyPay="Efectivo";$("buyCash").classList.remove("secondary");$("buySinpe").classList.add("secondary");};
+$("buySinpe").onclick=()=>{buyPay="SINPE / Otro";$("buySinpe").classList.remove("secondary");$("buyCash").classList.add("secondary");};
+$("saveBuy").onclick=()=>{
+  const desc=$("buyDesc").value.trim(), amount=Number($("buyAmount").value);
+  if(!desc || !Number.isFinite(amount) || amount<=0){$("buyMsg").textContent="Indique una descripción y un monto válido.";return;}
+  const now=new Date();
+  buys.push({date:date(),time:now.toLocaleTimeString("es-CR",{hour:"2-digit",minute:"2-digit"}),desc,amount,pay:buyPay});
+  saveBuys(); $("buyDesc").value=""; $("buyAmount").value="";
+  $("buyMsg").textContent="✓ Pago / compra registrado.";
+  renderBuySummary();
+};
+
+$("buyTab").onclick=()=>{
+  $("bp").style.display="block"; $("sp").classList.remove("active"); $("hp").classList.remove("active"); $("pp").classList.remove("active");
+  $("sp").style.display="none"; $("hp").style.display="none"; $("pp").style.display="none";
+  renderBuySummary();
+};
+$("st").onclick=()=>{$("bp").style.display="none";$("sp").style.display="";$("hp").style.display="none";$("pp").style.display="none";$("sp").classList.add("active");$("hp").classList.remove("active");$("pp").classList.remove("active");summary()}
+$("ht").onclick=()=>{$("bp").style.display="none";$("sp").style.display="none";$("hp").style.display="";$("pp").style.display="none";$("hp").classList.add("active");$("sp").classList.remove("active");$("pp").classList.remove("active");showPeriod()}
+$("pt").onclick=()=>{$("bp").style.display="none";$("sp").style.display="none";$("hp").style.display="none";$("pp").style.display="";$("pp").classList.add("active");$("sp").classList.remove("active");$("hp").classList.remove("active");renderProducts()}
+$("filter").onclick=showPeriod
+$("addProduct").onclick=()=>{let n=$("newName").value.trim(),p=Number($("newPrice").value);if(!n||!Number.isFinite(p)||p<0)return;PRODUCTS.push({name:n,price:p});saveProducts();$("newName").value="";$("newPrice").value="";fillProducts();renderProducts()}
+$("printSummary").onclick=()=>{window.print()}
+$("printPeriod").onclick=()=>{window.print()}
+
+function currentPeriodSales(){
+  let a=$("from").value,b=$("to").value;
+  return sales.filter(s=>(!a||s.date>=a)&&(!b||s.date<=b));
+}
+$("exportCsv").onclick=()=>{
+  const list=currentPeriodSales();
+  let rows=[["Fecha","Hora","Producto","Cantidad","Precio","Total","Forma de pago"]];
+  list.forEach(s=>s.items.forEach(x=>rows.push([s.date,s.time,x.name,x.qty,x.price,x.qty*x.price,s.pay])));
+  const csv="\\ufeff"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=url; a.download="ventas_pulperia_"+($("from").value||"inicio")+"_"+($("to").value||"fin")+".csv";
+  a.click(); URL.revokeObjectURL(url);
+};
+
+$("backup").onclick=()=>{
+  const data={version:4,created:new Date().toISOString(),products:PRODUCTS,sales:sales,buys:buys};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="respaldo_pulperia_"+date()+".json";a.click();URL.revokeObjectURL(url);
+  localStorage.setItem(BKEY,new Date().toLocaleString("es-CR"));
+  $("backupMsg").textContent="✓ Respaldo guardado: "+localStorage.getItem(BKEY)+". Consérvelo en un lugar seguro.";
+};
+$("restoreBtn").onclick=()=>$("restoreFile").click();
+$("restoreFile").onchange=e=>{
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const data=JSON.parse(reader.result);
+      if(!Array.isArray(data.products)||!Array.isArray(data.sales)) throw new Error();
+      PRODUCTS=data.products;sales=data.sales;saveProducts();localStorage.setItem(KEY,JSON.stringify(sales));
+      fillProducts();renderCart();summary();showPeriod();renderProducts();
+      $("backupMsg").textContent="✓ Datos restaurados correctamente.";
+    }catch(err){$("backupMsg").textContent="No se pudo restaurar el archivo de respaldo."}
+  };
+  reader.readAsText(file);
+};
+
+$("from").value=date();$("to").value=date();fillProducts();renderCart();summary();showPeriod();
+const lb=localStorage.getItem(BKEY); if(lb) $("backupMsg").textContent="Último respaldo: "+lb;
+if ("serviceWorker" in navigator && location.protocol !== "file:") { navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script></body></html>
