@@ -1,4 +1,4 @@
-const CACHE = "caja-pulperia-v8";
+const CACHE = "caja-pulperia-v9";
 
 self.addEventListener("install", event => {
   event.waitUntil(
